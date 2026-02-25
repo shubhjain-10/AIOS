@@ -1,0 +1,310 @@
+package com.example.aios.ui
+
+import android.animation.ValueAnimator
+import android.content.Context
+import android.graphics.*
+import android.graphics.drawable.GradientDrawable
+import android.view.Gravity
+import android.view.View
+import android.view.ViewGroup
+import android.view.animation.LinearInterpolator
+import android.widget.*
+import androidx.core.content.ContextCompat
+import kotlinx.coroutines.*
+import com.example.aios.ai.*
+import com.example.aios.ai.Secrets
+import com.google.gson.internal.GsonBuildConfig
+
+class HomeScreen(
+    private val context: Context,
+    private val memoryDao: com.example.aios.data.memory.MemoryDao,
+    private val onMicClick: () -> Unit
+) {
+
+    private lateinit var micButton: ImageView
+    private var isListening = false
+    private var glowAnimator: ValueAnimator? = null
+
+    private lateinit var aiContainer: LinearLayout
+    private lateinit var memoryContainer: LinearLayout
+    private val uiScope = CoroutineScope(Dispatchers.Main + Job())
+
+    private lateinit var chatContainer: LinearLayout
+    private lateinit var inputField: EditText
+
+    fun createView(): View {
+
+        val root = LinearLayout(context)
+        root.orientation = LinearLayout.VERTICAL
+        root.setBackgroundColor(Color.BLACK)
+
+        // ----- Toggle Bar -----
+        val toggleBar = LinearLayout(context)
+        toggleBar.orientation = LinearLayout.HORIZONTAL
+        toggleBar.gravity = Gravity.CENTER
+        toggleBar.setPadding(0, 60, 0, 30)
+
+        val aiTab = createTab("AIOS")
+        val memoryTab = createTab("Memory")
+
+        toggleBar.addView(aiTab)
+        toggleBar.addView(memoryTab)
+
+        root.addView(toggleBar)
+
+        // ----- AI CONTAINER -----
+        aiContainer = createAIContainer()
+
+        // ----- MEMORY CONTAINER -----
+        memoryContainer = LinearLayout(context)
+        memoryContainer.orientation = LinearLayout.VERTICAL
+        memoryContainer.setPadding(60, 40, 60, 0)
+        memoryContainer.visibility = View.GONE
+
+        root.addView(aiContainer)
+        root.addView(memoryContainer)
+
+        aiTab.setOnClickListener {
+            aiContainer.visibility = View.VISIBLE
+            memoryContainer.visibility = View.GONE
+        }
+
+        memoryTab.setOnClickListener {
+            aiContainer.visibility = View.GONE
+            memoryContainer.visibility = View.VISIBLE
+            loadMemories()
+        }
+
+        return root
+    }
+
+    private fun createTab(title: String): TextView {
+        val tab = TextView(context)
+        tab.text = title
+        tab.setTextColor(Color.parseColor("#1F6BFF"))
+        tab.textSize = 18f
+        tab.setPadding(60, 10, 60, 10)
+        tab.setTypeface(null, Typeface.BOLD)
+        return tab
+    }
+
+    private fun createAIContainer(): LinearLayout {
+
+        val container = LinearLayout(context)
+        container.orientation = LinearLayout.VERTICAL
+        container.layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            0,
+            1f
+        )
+
+        // Chat Scroll Area
+        val scrollView = ScrollView(context)
+        scrollView.layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            0,
+            1f
+        )
+
+        chatContainer = LinearLayout(context)
+        chatContainer.orientation = LinearLayout.VERTICAL
+        chatContainer.setPadding(40, 40, 40, 40)
+
+        scrollView.addView(chatContainer)
+
+        // Input Container
+        val inputContainer = LinearLayout(context)
+        inputContainer.orientation = LinearLayout.HORIZONTAL
+        inputContainer.setPadding(40, 20, 40, 40)
+
+        val inputParams = LinearLayout.LayoutParams(
+            0,
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            1f
+        )
+
+        inputField = EditText(context)
+        inputField.hint = "Ask anything..."
+        inputField.setHintTextColor(Color.GRAY)
+        inputField.setTextColor(Color.WHITE)
+        inputField.setBackgroundColor(Color.parseColor("#111111"))
+        inputField.layoutParams = inputParams
+
+        val sendButton = Button(context)
+        sendButton.text = "Send"
+
+        sendButton.setOnClickListener {
+            val text = inputField.text.toString()
+            if (text.isNotBlank()) {
+                addMessage("You", text)
+                inputField.text.clear()
+                fetchAI(text)
+            }
+        }
+
+        micButton = ImageView(context)
+        micButton.setImageResource(android.R.drawable.ic_btn_speak_now)
+        micButton.setColorFilter(Color.parseColor("#1F6BFF"))
+
+        micButton.setOnClickListener {
+            toggleListening()
+            onMicClick()
+        }
+
+        inputContainer.addView(inputField)
+        inputContainer.addView(sendButton)
+        inputContainer.addView(micButton)
+
+        container.addView(scrollView)
+        container.addView(inputContainer)
+
+        return container
+    }
+
+    private fun fetchAI(userMessage: String) {
+
+        uiScope.launch {
+
+            addMessage("AI OS", "Thinking...")
+
+            val lower = userMessage.lowercase()
+
+            // -------- HANDLE MEMORY STORE --------
+            if (MemoryIntentParser.shouldRemember(lower)) {
+
+                val memory = MemoryIntentParser.extractMemory(userMessage)
+
+                withContext(Dispatchers.IO) {
+                    memoryDao.insert(
+                        com.example.aios.data.memory.MemoryEntity(content = memory)
+                    )
+                }
+
+                chatContainer.removeViewAt(chatContainer.childCount - 1)
+                addMessage("AI OS", "Got it. I'll remember that.")
+                return@launch
+            }
+
+            // -------- HANDLE MEMORY DELETE --------
+            if (MemoryIntentParser.shouldForget(lower)) {
+
+                val keyword = MemoryIntentParser.extractForgetKeyword(userMessage)
+
+                withContext(Dispatchers.IO) {
+                    memoryDao.deleteByKeyword("%$keyword%")
+                }
+
+                chatContainer.removeViewAt(chatContainer.childCount - 1)
+                addMessage("AI OS", "Done. I forgot that.")
+                return@launch
+            }
+
+            // -------- NORMAL AI RESPONSE --------
+
+            val memories = withContext(Dispatchers.IO) {
+                memoryDao.getAll()
+            }
+
+            val memoryContext = memories.joinToString("\n") { memory ->
+                memory.content
+            }
+
+            val request = ChatRequest(
+                model = "gpt-4o-mini",
+                messages = listOf(
+                    Message("system", "You are AI OS, futuristic assistant."),
+                    Message("system", "User facts:\n$memoryContext"),
+                    Message("user", userMessage)
+                )
+            )
+
+            val response = withContext(Dispatchers.IO) {
+                RetrofitClient.api.chatCompletion(
+                    "Bearer ${Secrets.OPENAI_API_KEY}",
+                    request
+                )
+            }
+
+            val reply = response.body()
+                ?.choices
+                ?.firstOrNull()
+                ?.message
+                ?.content ?: "No response."
+
+            chatContainer.removeViewAt(chatContainer.childCount - 1)
+            addMessage("AI OS", reply)
+        }
+    }
+
+    private fun addMessage(sender: String, message: String) {
+
+        val textView = TextView(context)
+        textView.text = "$sender: $message"
+        textView.setTextColor(Color.WHITE)
+        textView.textSize = 16f
+        textView.setPadding(0, 10, 0, 10)
+
+        chatContainer.addView(textView)
+    }
+
+    private fun loadMemories() {
+
+        uiScope.launch {
+
+            val memories = withContext(Dispatchers.IO) {
+                memoryDao.getAll()
+            }
+
+            memoryContainer.removeAllViews()
+
+            if (memories.isEmpty()) {
+                val empty = TextView(context)
+                empty.text = "No memories stored."
+                empty.setTextColor(Color.GRAY)
+                memoryContainer.addView(empty)
+                return@launch
+            }
+
+            memories.forEach {
+                val text = TextView(context)
+                text.text = "• ${it.content}"
+                text.setTextColor(Color.WHITE)
+                text.textSize = 16f
+                text.setPadding(0, 20, 0, 20)
+                memoryContainer.addView(text)
+            }
+        }
+    }
+
+    private fun toggleListening() {
+        isListening = !isListening
+
+        if (isListening) {
+            startGlow()
+        } else {
+            stopGlow()
+        }
+    }
+
+    private fun startGlow() {
+        glowAnimator = ValueAnimator.ofFloat(0f, 1f).apply {
+            duration = 1200
+            repeatMode = ValueAnimator.REVERSE
+            repeatCount = ValueAnimator.INFINITE
+            interpolator = LinearInterpolator()
+
+            addUpdateListener {
+                val value = it.animatedValue as Float
+                val alpha = (100 + (155 * value)).toInt()
+                micButton.setColorFilter(Color.argb(alpha, 31, 107, 255))
+            }
+
+            start()
+        }
+    }
+
+    private fun stopGlow() {
+        glowAnimator?.cancel()
+        micButton.setColorFilter(Color.parseColor("#1F6BFF"))
+    }
+}
