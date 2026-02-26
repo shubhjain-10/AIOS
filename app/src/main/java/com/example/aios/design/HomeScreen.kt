@@ -14,6 +14,8 @@ import kotlinx.coroutines.*
 import com.example.aios.ai.*
 import com.example.aios.ai.Secrets
 import com.google.gson.internal.GsonBuildConfig
+import com.example.aios.R
+import android.view.KeyEvent
 
 class HomeScreen(
     private val context: Context,
@@ -127,11 +129,73 @@ class HomeScreen(
         inputField.hint = "Ask anything..."
         inputField.setHintTextColor(Color.GRAY)
         inputField.setTextColor(Color.WHITE)
-        inputField.setBackgroundColor(Color.parseColor("#111111"))
+        //inputField.setBackgroundColor(Color.parseColor("#111111"))
         inputField.layoutParams = inputParams
 
-        val sendButton = Button(context)
-        sendButton.text = "Send"
+        // Rounded background with blue border
+        val roundedBackground = GradientDrawable().apply {
+            shape = GradientDrawable.RECTANGLE
+            setColor(Color.parseColor("#111111")) // inside color
+            cornerRadius = 60f                     // roundness
+            setStroke(3, Color.parseColor("#1F6BFF")) // blue border
+        }
+        inputField.setOnFocusChangeListener { _, hasFocus ->
+            if (hasFocus) {
+                roundedBackground.setStroke(4, Color.parseColor("#1F6BFF"))
+            } else {
+                roundedBackground.setStroke(3, Color.parseColor("#1F6BFF"))
+            }
+        }
+
+        inputField.background = roundedBackground
+        inputField.setPadding(40, 25, 40, 25)
+        inputField.isSingleLine = false
+        inputField.maxLines = 6
+
+        inputField.setOnKeyListener { _, keyCode, event ->
+
+            if (event.action == KeyEvent.ACTION_DOWN && keyCode == KeyEvent.KEYCODE_ENTER) {
+
+                // If ALT is pressed → allow new line
+                if (event.isAltPressed) {
+                    return@setOnKeyListener false
+                }
+
+                // Otherwise send message
+                val text = inputField.text.toString().trim()
+                if (text.isNotBlank()) {
+                    addMessage("You", text)
+                    inputField.text.clear()
+                    fetchAI(text)
+                }
+
+                true // consume event (prevent new line)
+            } else {
+                false
+            }
+        }
+
+        // Send Arrow Button
+        val sendButton = ImageView(context)
+
+        val size = 110
+        val sendParams = LinearLayout.LayoutParams(size, size)
+        sendParams.setMargins(20, 0, 20, 0)
+        sendButton.layoutParams = sendParams
+
+        // Blue circular background
+        val sendBackground = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(Color.parseColor("#1F6BFF"))
+        }
+        sendButton.background = sendBackground
+
+        // Arrow icon
+        sendButton.setImageResource(R.drawable.ic_send)
+        sendButton.scaleType = ImageView.ScaleType.CENTER_INSIDE
+        sendButton.setPadding(28, 28, 28, 28)
+        sendButton.scaleType = ImageView.ScaleType.CENTER_INSIDE
+        sendButton.setPadding(30, 30, 30, 30)
 
         sendButton.setOnClickListener {
             val text = inputField.text.toString()
@@ -142,9 +206,22 @@ class HomeScreen(
             }
         }
 
+        // Mic Button (circular, aligned)
         micButton = ImageView(context)
+
+        val micParams = LinearLayout.LayoutParams(size, size)
+        micButton.layoutParams = micParams
+
+        val micBackground = GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(Color.parseColor("#111111"))
+            setStroke(3, Color.parseColor("#1F6BFF"))
+        }
+
+        micButton.background = micBackground
         micButton.setImageResource(android.R.drawable.ic_btn_speak_now)
         micButton.setColorFilter(Color.parseColor("#1F6BFF"))
+        micButton.scaleType = ImageView.ScaleType.CENTER
 
         micButton.setOnClickListener {
             toggleListening()
@@ -154,6 +231,7 @@ class HomeScreen(
         inputContainer.addView(inputField)
         inputContainer.addView(sendButton)
         inputContainer.addView(micButton)
+        inputContainer.gravity = Gravity.CENTER_VERTICAL
 
         container.addView(scrollView)
         container.addView(inputContainer)
