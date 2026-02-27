@@ -29,30 +29,65 @@ class HomeScreen(
 
     private lateinit var aiContainer: LinearLayout
     private lateinit var memoryContainer: LinearLayout
+
+    private lateinit var aimContainer: LinearLayout
     private val uiScope = CoroutineScope(Dispatchers.Main + Job())
 
     private lateinit var chatContainer: LinearLayout
     private lateinit var inputField: EditText
 
+
     fun createView(): View {
 
-        val root = LinearLayout(context)
-        root.orientation = LinearLayout.VERTICAL
+        val root = FrameLayout(context)
         root.setBackgroundColor(Color.BLACK)
 
-        // ----- Toggle Bar -----
-        val toggleBar = LinearLayout(context)
-        toggleBar.orientation = LinearLayout.HORIZONTAL
-        toggleBar.gravity = Gravity.CENTER
-        toggleBar.setPadding(0, 60, 0, 30)
+        val mainLayout = LinearLayout(context)
+        mainLayout.orientation = LinearLayout.VERTICAL
+        mainLayout.layoutParams = FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        )
 
-        val aiTab = createTab("AIOS")
-        val memoryTab = createTab("Memory")
+        root.addView(mainLayout)
 
-        toggleBar.addView(aiTab)
-        toggleBar.addView(memoryTab)
+        // ----- Top Header -----
+        val header = LinearLayout(context)
+        header.orientation = LinearLayout.HORIZONTAL
+        header.gravity = Gravity.CENTER_VERTICAL
+        header.setPadding(40, 60, 40, 40)
+        header.layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
 
-        root.addView(toggleBar)
+        // Menu Icon
+        val menuIcon = ImageView(context)
+        menuIcon.setImageResource(android.R.drawable.ic_menu_sort_by_size)
+        menuIcon.setColorFilter(Color.parseColor("#1F6BFF"))
+
+        val iconParams = LinearLayout.LayoutParams(80, 80)
+        menuIcon.layoutParams = iconParams
+
+        header.addView(menuIcon)
+
+        // Title
+        val headerTitle = TextView(context)
+        headerTitle.text = "AI OS"
+        headerTitle.setTextColor(Color.WHITE)
+        headerTitle.textSize = 20f
+        headerTitle.setTypeface(null, Typeface.BOLD)
+
+        val titleParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.WRAP_CONTENT,
+            ViewGroup.LayoutParams.WRAP_CONTENT
+        )
+        titleParams.setMargins(40, 0, 0, 0)
+        headerTitle.layoutParams = titleParams
+
+        header.addView(headerTitle)
+
+        mainLayout.addView(header)
 
         // ----- AI CONTAINER -----
         aiContainer = createAIContainer()
@@ -63,18 +98,101 @@ class HomeScreen(
         memoryContainer.setPadding(60, 40, 60, 0)
         memoryContainer.visibility = View.GONE
 
-        root.addView(aiContainer)
-        root.addView(memoryContainer)
+        aimContainer = LinearLayout(context)
+        aimContainer.orientation = LinearLayout.VERTICAL
 
-        aiTab.setOnClickListener {
-            aiContainer.visibility = View.VISIBLE
-            memoryContainer.visibility = View.GONE
+        val aimScreen = AimScreen(context) { newView ->
+
+            aimContainer.removeAllViews()
+            aimContainer.addView(newView)
         }
 
-        memoryTab.setOnClickListener {
+        aimContainer.addView(aimScreen.createView())
+        aimContainer.visibility = View.GONE
+        mainLayout.addView(aiContainer)
+        mainLayout.addView(memoryContainer)
+        mainLayout.addView(aimContainer)
+
+        // ----- Sidebar -----
+        val sidebarWidth = 600
+
+        val sidebar = LinearLayout(context)
+        sidebar.orientation = LinearLayout.VERTICAL
+        sidebar.setBackgroundColor(Color.parseColor("#111111"))
+
+        val sidebarParams = FrameLayout.LayoutParams(
+            sidebarWidth,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        )
+        sidebar.layoutParams = sidebarParams
+        sidebar.translationX = -sidebarWidth.toFloat()
+
+        // Sidebar items
+        fun createMenuItem(text: String): TextView {
+            val item = TextView(context)
+            item.text = text
+            item.setTextColor(Color.WHITE)
+            item.textSize = 18f
+            item.setPadding(60, 60, 60, 60)
+            return item
+        }
+
+        val aiItem = createMenuItem("AI OS")
+        val memoryItem = createMenuItem("Memory")
+        val aimItem = createMenuItem("Aim")
+
+        sidebar.addView(aiItem)
+        sidebar.addView(memoryItem)
+        sidebar.addView(aimItem)
+
+        root.addView(sidebar)
+
+        var isSidebarOpen = false
+
+        fun openSidebar() {
+            sidebar.animate()
+                .translationX(0f)
+                .setDuration(300)
+                .start()
+            isSidebarOpen = true
+        }
+
+        fun closeSidebar() {
+            sidebar.animate()
+                .translationX(-sidebarWidth.toFloat())
+                .setDuration(300)
+                .start()
+            isSidebarOpen = false
+        }
+
+        menuIcon.setOnClickListener {
+            if (isSidebarOpen) closeSidebar()
+            else openSidebar()
+        }
+
+        aiItem.setOnClickListener {
+            aiContainer.visibility = View.VISIBLE
+            memoryContainer.visibility = View.GONE
+            aimContainer.visibility = View.GONE
+            headerTitle.text = "AI OS"
+            closeSidebar()
+        }
+
+        memoryItem.setOnClickListener {
             aiContainer.visibility = View.GONE
             memoryContainer.visibility = View.VISIBLE
+            aimContainer.visibility = View.GONE
+            headerTitle.text = "Memory"
             loadMemories()
+            closeSidebar()
+        }
+
+        aimItem.setOnClickListener {
+            aiContainer.visibility = View.GONE
+            memoryContainer.visibility = View.GONE
+            aimContainer.visibility = View.VISIBLE
+            headerTitle.text = "Aim"
+            closeSidebar()
         }
 
         return root
