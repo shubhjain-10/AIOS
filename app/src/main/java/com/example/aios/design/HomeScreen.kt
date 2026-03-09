@@ -31,6 +31,8 @@ class HomeScreen(
     private lateinit var memoryContainer: LinearLayout
 
     private lateinit var aimContainer: LinearLayout
+
+    private lateinit var progressContainer: LinearLayout
     private val uiScope = CoroutineScope(Dispatchers.Main + Job())
 
     private lateinit var chatContainer: LinearLayout
@@ -88,30 +90,70 @@ class HomeScreen(
         header.addView(headerTitle)
 
         mainLayout.addView(header)
+        val contentContainer = FrameLayout(context)
+        contentContainer.layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            0,
+            1f
+        )
+
+        mainLayout.addView(contentContainer)
+
+        contentContainer.addView(createAIContainer())
 
         // ----- AI CONTAINER -----
-        aiContainer = createAIContainer()
-
-        // ----- MEMORY CONTAINER -----
-        memoryContainer = LinearLayout(context)
-        memoryContainer.orientation = LinearLayout.VERTICAL
-        memoryContainer.setPadding(60, 40, 60, 0)
-        memoryContainer.visibility = View.GONE
-
-        aimContainer = LinearLayout(context)
-        aimContainer.orientation = LinearLayout.VERTICAL
-
-        val aimScreen = AimScreen(context) { newView ->
-
-            aimContainer.removeAllViews()
-            aimContainer.addView(newView)
-        }
-
-        aimContainer.addView(aimScreen.createView())
-        aimContainer.visibility = View.GONE
-        mainLayout.addView(aiContainer)
-        mainLayout.addView(memoryContainer)
-        mainLayout.addView(aimContainer)
+//        aiContainer = createAIContainer()
+//
+//        // ----- MEMORY CONTAINER -----
+//        memoryContainer = LinearLayout(context)
+//        memoryContainer.orientation = LinearLayout.VERTICAL
+//        memoryContainer.setPadding(60, 40, 60, 0)
+//        memoryContainer.layoutParams = LinearLayout.LayoutParams(
+//            ViewGroup.LayoutParams.MATCH_PARENT,
+//            0,
+//            1f
+//        )
+//        memoryContainer.visibility = View.GONE
+//
+//        aimContainer = LinearLayout(context)
+//        aimContainer.orientation = LinearLayout.VERTICAL
+//        aimContainer.layoutParams = LinearLayout.LayoutParams(
+//            ViewGroup.LayoutParams.MATCH_PARENT,
+//            0,
+//            1f
+//        )
+//
+//        val aimScreen = AimScreen(context) { newView ->
+//
+//            aimContainer.removeAllViews()
+//            aimContainer.addView(newView)
+//        }
+//
+//        aimContainer.addView(aimScreen.createView())
+//        aimContainer.visibility = View.GONE
+//        mainLayout.addView(aiContainer)
+//        mainLayout.addView(memoryContainer)
+//        mainLayout.addView(aimContainer)
+//
+//        progressContainer = LinearLayout(context)
+//        progressContainer.orientation = LinearLayout.VERTICAL
+//        progressContainer.visibility = View.GONE
+//
+//        // Example default screen (you can connect real goal later)
+//        val progressScreen = ProgressScreen(
+//            context,
+//            "No goal set yet",
+//            "No timeline",
+//        ) {
+//            // On back → go to AI OS
+//            progressContainer.visibility = View.GONE
+//            aiContainer.visibility = View.VISIBLE
+//            headerTitle.text = "AI OS"
+//        }
+//
+//        progressContainer.addView(progressScreen.createView())
+//
+//        mainLayout.addView(progressContainer)
 
         // ----- Sidebar -----
         val sidebarWidth = 600
@@ -140,10 +182,12 @@ class HomeScreen(
         val aiItem = createMenuItem("AI OS")
         val memoryItem = createMenuItem("Memory")
         val aimItem = createMenuItem("Aim")
+        val progressItem = createMenuItem("Progress")
 
         sidebar.addView(aiItem)
         sidebar.addView(memoryItem)
         sidebar.addView(aimItem)
+        sidebar.addView(progressItem)
 
         root.addView(sidebar)
 
@@ -171,29 +215,73 @@ class HomeScreen(
         }
 
         aiItem.setOnClickListener {
-            aiContainer.visibility = View.VISIBLE
-            memoryContainer.visibility = View.GONE
-            aimContainer.visibility = View.GONE
+            contentContainer.removeAllViews()
+            contentContainer.addView(createAIContainer())
             headerTitle.text = "AI OS"
             closeSidebar()
         }
 
         memoryItem.setOnClickListener {
-            aiContainer.visibility = View.GONE
-            memoryContainer.visibility = View.VISIBLE
-            aimContainer.visibility = View.GONE
-            headerTitle.text = "Memory"
+
+            contentContainer.removeAllViews()
+
+            val memoryLayout = LinearLayout(context)
+            memoryLayout.orientation = LinearLayout.VERTICAL
+            memoryLayout.setPadding(60, 40, 60, 0)
+
+            contentContainer.addView(memoryLayout)
+
+            memoryContainer = memoryLayout
             loadMemories()
+
+            headerTitle.text = "Memory"
             closeSidebar()
         }
 
         aimItem.setOnClickListener {
-            aiContainer.visibility = View.GONE
-            memoryContainer.visibility = View.GONE
-            aimContainer.visibility = View.VISIBLE
+
+            contentContainer.removeAllViews()
+
+            val aimScreen = AimScreen(context) { newView ->
+                contentContainer.removeAllViews()
+                contentContainer.addView(newView)
+
+                // 🔥 Auto update header based on screen type
+                when (newView) {
+                    is ScrollView -> headerTitle.text = "Progress"
+                    else -> headerTitle.text = "Aim"
+                }
+            }
+
+            contentContainer.addView(aimScreen.createView())
+
             headerTitle.text = "Aim"
             closeSidebar()
         }
+
+        progressItem.setOnClickListener {
+
+            contentContainer.removeAllViews()
+
+            val progressScreen = ProgressScreen(
+                context,
+                onBack = {
+                    contentContainer.removeAllViews()
+                    contentContainer.addView(createAIContainer())
+                    headerTitle.text = "AI OS"
+                },
+                openDetail = { newView ->
+                    contentContainer.removeAllViews()
+                    contentContainer.addView(newView)
+                }
+            )
+
+            contentContainer.addView(progressScreen.createView())
+
+            headerTitle.text = "Progress"
+            closeSidebar()
+        }
+
 
         return root
     }
@@ -212,10 +300,9 @@ class HomeScreen(
 
         val container = LinearLayout(context)
         container.orientation = LinearLayout.VERTICAL
-        container.layoutParams = LinearLayout.LayoutParams(
+        container.layoutParams = FrameLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
-            0,
-            1f
+            ViewGroup.LayoutParams.MATCH_PARENT
         )
 
         // Chat Scroll Area

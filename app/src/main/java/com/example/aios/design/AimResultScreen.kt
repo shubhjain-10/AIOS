@@ -9,89 +9,133 @@ import android.view.ViewGroup
 import android.widget.*
 import kotlinx.coroutines.*
 import com.example.aios.ai.analyzeGoal
-
+import com.example.aios.storage.Aim
+import com.example.aios.storage.AimRepository
 
 class AimResultScreen(
     private val context: Context,
     private val goal: String,
     private val timeline: String,
-    private val onBack: () -> Unit
+    private val onBack: () -> Unit,
+    private val openScreen: (View) -> Unit   // 👈 NEW
 ) {
 
     fun createView(): View {
 
-        // Root ScrollView
         val scrollView = ScrollView(context)
         scrollView.layoutParams = LinearLayout.LayoutParams(
             ViewGroup.LayoutParams.MATCH_PARENT,
             ViewGroup.LayoutParams.MATCH_PARENT
         )
 
-        // Inner container
-        val container = LinearLayout(context)
-        container.orientation = LinearLayout.VERTICAL
-        container.setPadding(60, 40, 60, 40)
-        container.layoutParams = LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
+        val container = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(60, 40, 60, 40)
+        }
 
         scrollView.addView(container)
 
-        // Title
-        val title = TextView(context)
-        title.text = "Feasibility Result"
-        title.setTextColor(Color.WHITE)
-        title.textSize = 22f
-        title.setTypeface(null, Typeface.BOLD)
-        title.setPadding(0, 0, 0, 40)
+        // ===== Title =====
+        val title = TextView(context).apply {
+            text = "Feasibility Result"
+            textSize = 22f
+            setTextColor(Color.WHITE)
+            setTypeface(null, Typeface.BOLD)
+            setPadding(0, 0, 0, 40)
+        }
 
         container.addView(title)
 
-        // Result Text
-        val resultText = TextView(context)
-        resultText.setTextColor(Color.WHITE)
-        resultText.textSize = 16f
-        resultText.text = "Analyzing with AI..."
+        // ===== AI Result Text =====
+        val resultText = TextView(context).apply {
+            textSize = 16f
+            setTextColor(Color.WHITE)
+            text = "Analyzing with AI..."
+        }
 
         container.addView(resultText)
 
         CoroutineScope(Dispatchers.Main).launch {
-
             val result = withContext(Dispatchers.IO) {
                 analyzeGoal(goal, timeline)
             }
-
             resultText.text = result
         }
 
-        // Spacing
-        val space = Space(context)
-        space.layoutParams = LinearLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            60
-        )
-        container.addView(space)
+        addSpace(container, 60)
 
-        // Back Button
-        val backButton = Button(context)
-        backButton.text = "Modify Goal"
-        backButton.setTextColor(Color.WHITE)
-
-        val bg = GradientDrawable().apply {
-            cornerRadius = 40f
-            setColor(Color.parseColor("#1F6BFF"))
+        // ===== Save Aim Button =====
+        val saveButton = Button(context).apply {
+            text = "SAVE AIM"
+            setTextColor(Color.WHITE)
+            setTypeface(null, Typeface.BOLD)
+            background = GradientDrawable().apply {
+                cornerRadius = 60f
+                setColor(Color.parseColor("#2F6BFF"))
+            }
+            setPadding(40, 30, 40, 30)
         }
 
-        backButton.background = bg
-        backButton.setPadding(40, 25, 40, 25)
+        container.addView(saveButton)
 
-        backButton.setOnClickListener {
-            onBack()
+        addSpace(container, 30)
+
+        // ===== Modify Button =====
+        val backButton = Button(context).apply {
+            text = "MODIFY GOAL"
+            setTextColor(Color.WHITE)
+            background = GradientDrawable().apply {
+                cornerRadius = 60f
+                setColor(Color.parseColor("#444444"))
+            }
+            setPadding(40, 30, 40, 30)
+            setOnClickListener { onBack() }
         }
 
         container.addView(backButton)
 
+        // ===== Save Logic =====
+        saveButton.setOnClickListener {
+
+            val titleText = goal.lines().firstOrNull() ?: goal
+
+            // Prevent duplicate titles
+            val alreadyExists = AimRepository.aims.any { it.title == titleText }
+
+            if (alreadyExists) {
+                Toast.makeText(context, "Aim already saved", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            val newAim = Aim(
+                title = titleText,
+                description = goal,
+                deadline = timeline
+            )
+
+            AimRepository.aims.add(newAim)
+
+            Toast.makeText(context, "Aim Saved!", Toast.LENGTH_SHORT).show()
+
+            // Go to Progress Menu
+            val progressScreen = ProgressScreen(
+                context,
+                onBack = { onBack() },
+                openDetail = { openScreen(it) }
+            )
+
+            openScreen(progressScreen.createView())
+        }
+
         return scrollView
+    }
+
+    private fun addSpace(layout: LinearLayout, height: Int) {
+        val space = Space(context)
+        space.layoutParams = LinearLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            height
+        )
+        layout.addView(space)
     }
 }
