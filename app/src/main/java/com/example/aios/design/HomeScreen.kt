@@ -33,10 +33,14 @@ class HomeScreen(
     private lateinit var aimContainer: LinearLayout
 
     private lateinit var progressContainer: LinearLayout
-    private val uiScope = CoroutineScope(Dispatchers.Main + Job())
+    private val uiScope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
 
     private lateinit var chatContainer: LinearLayout
     private lateinit var inputField: EditText
+
+    private val chatHistory = mutableListOf<Pair<String, String>>()
+
+
 
 
     fun createView(): View {
@@ -100,60 +104,6 @@ class HomeScreen(
         mainLayout.addView(contentContainer)
 
         contentContainer.addView(createAIContainer())
-
-        // ----- AI CONTAINER -----
-//        aiContainer = createAIContainer()
-//
-//        // ----- MEMORY CONTAINER -----
-//        memoryContainer = LinearLayout(context)
-//        memoryContainer.orientation = LinearLayout.VERTICAL
-//        memoryContainer.setPadding(60, 40, 60, 0)
-//        memoryContainer.layoutParams = LinearLayout.LayoutParams(
-//            ViewGroup.LayoutParams.MATCH_PARENT,
-//            0,
-//            1f
-//        )
-//        memoryContainer.visibility = View.GONE
-//
-//        aimContainer = LinearLayout(context)
-//        aimContainer.orientation = LinearLayout.VERTICAL
-//        aimContainer.layoutParams = LinearLayout.LayoutParams(
-//            ViewGroup.LayoutParams.MATCH_PARENT,
-//            0,
-//            1f
-//        )
-//
-//        val aimScreen = AimScreen(context) { newView ->
-//
-//            aimContainer.removeAllViews()
-//            aimContainer.addView(newView)
-//        }
-//
-//        aimContainer.addView(aimScreen.createView())
-//        aimContainer.visibility = View.GONE
-//        mainLayout.addView(aiContainer)
-//        mainLayout.addView(memoryContainer)
-//        mainLayout.addView(aimContainer)
-//
-//        progressContainer = LinearLayout(context)
-//        progressContainer.orientation = LinearLayout.VERTICAL
-//        progressContainer.visibility = View.GONE
-//
-//        // Example default screen (you can connect real goal later)
-//        val progressScreen = ProgressScreen(
-//            context,
-//            "No goal set yet",
-//            "No timeline",
-//        ) {
-//            // On back → go to AI OS
-//            progressContainer.visibility = View.GONE
-//            aiContainer.visibility = View.VISIBLE
-//            headerTitle.text = "AI OS"
-//        }
-//
-//        progressContainer.addView(progressScreen.createView())
-//
-//        mainLayout.addView(progressContainer)
 
         // ----- Sidebar -----
         val sidebarWidth = 600
@@ -317,6 +267,16 @@ class HomeScreen(
         chatContainer.orientation = LinearLayout.VERTICAL
         chatContainer.setPadding(40, 40, 40, 40)
 
+        chatHistory.forEach { (sender, message) ->
+            val textView = TextView(context)
+            textView.text = "$sender: $message"
+            textView.setTextColor(Color.WHITE)
+            textView.textSize = 16f
+            textView.setPadding(0, 10, 0, 10)
+
+            chatContainer.addView(textView)
+        }
+
         scrollView.addView(chatContainer)
 
         // Input Container
@@ -463,7 +423,9 @@ class HomeScreen(
                     )
                 }
 
-                chatContainer.removeViewAt(chatContainer.childCount - 1)
+                if (chatContainer.childCount > 0) {
+                    chatContainer.removeViewAt(chatContainer.childCount - 1)
+                }
                 addMessage("AI OS", "Got it. I'll remember that.")
                 return@launch
             }
@@ -477,7 +439,9 @@ class HomeScreen(
                     memoryDao.deleteByKeyword("%$keyword%")
                 }
 
-                chatContainer.removeViewAt(chatContainer.childCount - 1)
+                if (chatContainer.childCount > 0) {
+                    chatContainer.removeViewAt(chatContainer.childCount - 1)
+                }
                 addMessage("AI OS", "Done. I forgot that.")
                 return@launch
             }
@@ -500,26 +464,41 @@ class HomeScreen(
                     Message("user", userMessage)
                 )
             )
+            try {
 
-            val response = withContext(Dispatchers.IO) {
-                RetrofitClient.api.chatCompletion(
-                    "Bearer ${Secrets.OPENAI_API_KEY}",
-                    request
-                )
+                val response = withContext(Dispatchers.IO) {
+                    RetrofitClient.api.chatCompletion(
+                        "Bearer ${Secrets.OPENAI_API_KEY}",
+                        request
+                    )
+                }
+
+                val reply = response.body()
+                    ?.choices
+                    ?.firstOrNull()
+                    ?.message
+                    ?.content ?: "No response."
+
+                if (chatContainer.childCount > 0) {
+                    chatContainer.removeViewAt(chatContainer.childCount - 1)
+                }
+
+                addMessage("AI OS", reply)
+
+            } catch (e: Exception) {
+                e.printStackTrace()
+                if (chatContainer.childCount > 0) {
+                    chatContainer.removeViewAt(chatContainer.childCount - 1)
+                }
+
+                addMessage("AI OS", "Something went wrong.")
             }
-
-            val reply = response.body()
-                ?.choices
-                ?.firstOrNull()
-                ?.message
-                ?.content ?: "No response."
-
-            chatContainer.removeViewAt(chatContainer.childCount - 1)
-            addMessage("AI OS", reply)
         }
     }
 
     private fun addMessage(sender: String, message: String) {
+
+        chatHistory.add(sender to message)
 
         val textView = TextView(context)
         textView.text = "$sender: $message"

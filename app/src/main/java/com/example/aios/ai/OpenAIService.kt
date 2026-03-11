@@ -7,7 +7,9 @@ import retrofit2.http.POST
 
 data class ChatRequest(
     val model: String,
-    val messages: List<Message>
+    val messages: List<Message>,
+    val max_tokens: Int = 1000,
+    val temperature: Double = 0.7
 )
 
 data class Message(

@@ -10,7 +10,9 @@ import android.widget.*
 import kotlinx.coroutines.*
 import com.example.aios.ai.analyzeGoal
 import com.example.aios.storage.Aim
-import com.example.aios.storage.AimRepository
+import com.example.aios.data.memory.MemoryDatabase
+
+
 
 class AimResultScreen(
     private val context: Context,
@@ -99,32 +101,32 @@ class AimResultScreen(
 
             val titleText = goal.lines().firstOrNull() ?: goal
 
-            // Prevent duplicate titles
-            val alreadyExists = AimRepository.aims.any { it.title == titleText }
-
-            if (alreadyExists) {
-                Toast.makeText(context, "Aim already saved", Toast.LENGTH_SHORT).show()
-                return@setOnClickListener
-            }
-
             val newAim = Aim(
                 title = titleText,
                 description = goal,
                 deadline = timeline
             )
 
-            AimRepository.aims.add(newAim)
+            val db = MemoryDatabase.getDatabase(context)
+            val aimDao = db.aimDao()
 
-            Toast.makeText(context, "Aim Saved!", Toast.LENGTH_SHORT).show()
+            CoroutineScope(Dispatchers.IO).launch {
 
-            // Go to Progress Menu
-            val progressScreen = ProgressScreen(
-                context,
-                onBack = { onBack() },
-                openDetail = { openScreen(it) }
-            )
+                aimDao.insert(newAim)
 
-            openScreen(progressScreen.createView())
+                withContext(Dispatchers.Main) {
+
+                    Toast.makeText(context, "Aim Saved!", Toast.LENGTH_SHORT).show()
+
+                    val progressScreen = ProgressScreen(
+                        context,
+                        onBack = { onBack() },
+                        openDetail = { openScreen(it) }
+                    )
+
+                    openScreen(progressScreen.createView())
+                }
+            }
         }
 
         return scrollView

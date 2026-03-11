@@ -7,7 +7,11 @@ import android.graphics.drawable.GradientDrawable
 import android.view.View
 import android.view.ViewGroup
 import android.widget.*
-import com.example.aios.storage.AimRepository
+import com.example.aios.data.memory.MemoryDatabase
+import kotlinx.coroutines.*
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 class ProgressScreen(
     private val context: Context,
@@ -39,42 +43,104 @@ class ProgressScreen(
         root.addView(title)
 
         // ===== Aims List =====
-        for (aim in AimRepository.aims) {
+        CoroutineScope(Dispatchers.Main).launch {
 
-            val aimButton = Button(context).apply {
-                text = aim.title.uppercase()
-                textSize = 16f
-                setTextColor(Color.WHITE)
-                setTypeface(null, Typeface.BOLD)
+            val db = MemoryDatabase.getDatabase(context)
+            val aimDao = db.aimDao()
 
-                background = GradientDrawable(
-                    GradientDrawable.Orientation.LEFT_RIGHT,
-                    intArrayOf(
-                        Color.parseColor("#2F6BFF"),
-                        Color.parseColor("#3D7BFF")
+            val aims = withContext(Dispatchers.IO) {
+                aimDao.getAll()
+            }
+
+            aims.forEach { aim ->
+
+                val row = LinearLayout(context).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    layoutParams = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
                     )
-                ).apply {
-                    cornerRadius = 80f
                 }
 
-                setPadding(40, 40, 40, 40)
-            }
+                val dateFormat = SimpleDateFormat("dd MMM yyyy", Locale.getDefault())
+                val created = dateFormat.format(Date(aim.createdDate))
+                val aimButton = Button(context).apply {
+                    text = "${aim.title.uppercase()}\nCreated: $created"
+                    textSize = 16f
+                    setTextColor(Color.WHITE)
+                    setTypeface(null, Typeface.BOLD)
 
-            aimButton.setOnClickListener {
-                val detailScreen = ProgressDetailScreen(context, aim) {
-                    openDetail(createView())
+                    background = GradientDrawable(
+                        GradientDrawable.Orientation.LEFT_RIGHT,
+                        intArrayOf(
+                            Color.parseColor("#2F6BFF"),
+                            Color.parseColor("#3D7BFF")
+                        )
+                    ).apply {
+                        cornerRadius = 80f
+                    }
+
+                    layoutParams = LinearLayout.LayoutParams(
+                        0,
+                        ViewGroup.LayoutParams.WRAP_CONTENT,
+                        1f
+                    )
+
+                    setPadding(40, 40, 40, 40)
                 }
-                openDetail(detailScreen.createView())
+
+                aimButton.setOnClickListener {
+
+                    val detailScreen = ProgressDetailScreen(
+                        context,
+                        aim
+                    ) {
+                        // go back to progress list
+                        openDetail(createView())
+                    }
+
+                    val view = detailScreen.createView()
+
+                    openDetail(view)
+                }
+
+                val deleteButton = Button(context).apply {
+                    text = "DELETE"
+                    textSize = 14f
+                    setTextColor(Color.WHITE)
+
+                    background = GradientDrawable().apply {
+                        cornerRadius = 80f
+                        setColor(Color.parseColor("#D32F2F"))
+                    }
+
+                    setPadding(30, 40, 30, 40)
+                }
+
+                deleteButton.setOnClickListener {
+
+                    CoroutineScope(Dispatchers.IO).launch {
+                        aimDao.delete(aim)
+
+                        withContext(Dispatchers.Main) {
+                            openDetail(createView()) // refresh screen
+                        }
+                    }
+                }
+
+                row.addView(aimButton)
+                row.addView(deleteButton)
+
+                root.addView(row)
+
+                val space = Space(context)
+                space.layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    40
+                )
+
+                root.addView(space)
             }
-
-            root.addView(aimButton)
-
-            val space = Space(context)
-            space.layoutParams = LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                40
-            )
-            root.addView(space)
         }
 
         // ===== Back Button =====
