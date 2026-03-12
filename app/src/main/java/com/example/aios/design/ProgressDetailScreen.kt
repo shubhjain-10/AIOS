@@ -12,6 +12,7 @@ import com.example.aios.ai.analyzeProgress
 import com.example.aios.data.memory.MemoryDatabase
 import java.text.SimpleDateFormat
 import java.util.*
+import android.util.Log
 class ProgressDetailScreen(
     private val context: Context,
     private val aim: Aim,
@@ -40,7 +41,7 @@ class ProgressDetailScreen(
 
         val deadlineDays = Regex("(\\d+)").find(aim.deadline)?.groupValues?.get(1)?.toInt() ?: 30
 
-        val daysPassed = ((System.currentTimeMillis() - aim.createdDate) / (1000 * 60 * 60 * 24)).toInt().coerceAtLeast(1)
+        val daysPassed = ((System.currentTimeMillis() - aim.createdDate) / (1000 * 60 * 60 * 24)).toInt()
 
         val daysRemaining = (deadlineDays - daysPassed).coerceAtLeast(0)
 
@@ -78,6 +79,13 @@ class ProgressDetailScreen(
         container.addView(solvedText)
 
         container.addView(percentText)
+
+        val remainingText = TextView(context).apply {
+            text = "$daysRemaining days remaining"
+            setTextColor(Color.LTGRAY)
+        }
+
+        container.addView(remainingText)
 
         val feedbackText = TextView(context).apply {
             textSize = 16f
@@ -146,6 +154,11 @@ class ProgressDetailScreen(
                     percentText.text = "Progress: $percent%"
                     feedbackText.text = message
 
+                    val newDaysPassed = ((System.currentTimeMillis() - aim.createdDate) / (1000 * 60 * 60 * 24)).toInt().coerceAtLeast(1)
+                    val newDaysRemaining = (deadlineDays - newDaysPassed).coerceAtLeast(0)
+
+                    remainingText.text = "$newDaysRemaining days remaining"
+
                 }
             }
         }
@@ -172,19 +185,12 @@ class ProgressDetailScreen(
             text =
                 "Start: Day 0\n" +
                         "Today: Day $daysPassed\n" +
-                        "Solved: ${aim.solvedCount} / $goalNumber\n" +
-                        "Expected by now: $expectedSolved"
+                        "Solved: ${aim.solvedCount} / $goalNumber\n"
             setTextColor(Color.LTGRAY)
         }
 
         container.addView(timelineText)
 
-        val remainingText = TextView(context).apply {
-            text = "$daysRemaining days remaining"
-            setTextColor(Color.LTGRAY)
-        }
-
-        container.addView(remainingText)
 
         val summary = TextView(context).apply {
             text =
