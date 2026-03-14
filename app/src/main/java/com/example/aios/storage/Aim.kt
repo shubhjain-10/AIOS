@@ -17,5 +17,7 @@ data class Aim(
 
     var solvedCount: Int = 0,
 
-    val createdDate: Long = System.currentTimeMillis()
+    val createdDate: Long = System.currentTimeMillis(),
+
+    var analysis: String = ""
 )

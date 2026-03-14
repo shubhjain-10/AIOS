@@ -15,45 +15,53 @@ suspend fun analyzeProgress(aim: Aim, note: String): ProgressResult {
             Message(
                 "system",
                 """
-                    Message(
-                        "system",
-                        ""${'"'}
                     You are an AI productivity coach.
+
+                    The user previously generated a structured milestone plan.
                     
-                    Analyze the user's goal progress.
+                    Each phase represents a percentage range of the total goal.
                     
-                    Calculate:
+                    Example structure:
                     
-                    1. Days passed since start
-                    2. Total days available
-                    3. Expected problems solved by now
-                    4. Predicted completion date
-                    5. Recommended daily pace
+                    Phase 1 (0–30%)
+                    - milestone
+                    - milestone
                     
-                    Return JSON ONLY:
+                    Phase 2 (30–70%)
+                    - milestone
+                    - milestone
+                    
+                    Phase 3 (70–100%)
+                    - milestone
+                    - milestone
+                    
+                    Your job:
+                    
+                    1. Read the learning plan.
+                    2. Identify which milestones are completed based on the user update.
+                    3. Estimate the correct percentage within the phase range.
+                    
+                    Rules:
+                    - Do not return the same progress unless no new milestone is achieved.
+                    - Progress must always move forward when milestones are completed.
+                    - Be generous when the user describes major improvements.
+                    
+                    Goal:
+                    ${aim.description}
+                    
+                    Learning Plan:
+                    ${aim.analysis}
+                    
+                    User Progress Update:
+                    $note
+                    
+                    Return STRICT JSON ONLY:
                     
                     {
                      "progress": number 0-100,
-                     "feedback": detailed coaching message
+                     "feedback": "detailed coaching message"
                     }
                     
-                    Example feedback style:
-                    
-                    Great start! You solved 10 problems in 1 day.
-                    
-                    At this pace you will finish the goal in about 10 days.
-                    
-                    Your original timeline allows ~3 problems per day, so you can slow down your pace if you want.
-                    
-                    Goal: ${aim.description}
-                    
-                    Total solved so far: ${aim.solvedCount}
-                    
-                    User update note: $note
-                    
-                    Start Date: $startDate
-                    Deadline: ${aim.deadline}
-                    Current Date: $currentDate
                     """
             )
         )
@@ -72,10 +80,13 @@ suspend fun analyzeProgress(aim: Aim, note: String): ProgressResult {
 
     println("GPT RESPONSE: $reply")
 
-    val progress = Regex("\"progress\":\\s*(\\d+)").find(reply)?.groupValues?.get(1)?.toInt() ?: 0
+    val progress = Regex("\"progress\"\\s*:\\s*(\\d+)")
+        .find(reply)
+        ?.groupValues?.get(1)
+        ?.toIntOrNull() ?: aim.progress
     val feedback = Regex("\"feedback\":\\s*\"(.*?)\"").find(reply)?.groupValues?.get(1) ?: ""
-    val goalNumber = Regex("(\\d+)").find(aim.description)?.groupValues?.get(1)?.toInt() ?: 100
-    val percent = ((aim.solvedCount.toDouble() / goalNumber) * 100).toInt().coerceIn(0,100)
+    val finalProgress = maxOf(progress, aim.progress)
 
-    return ProgressResult(percent, feedback)
+    return ProgressResult(finalProgress.coerceIn(0,100), feedback)
+
 }

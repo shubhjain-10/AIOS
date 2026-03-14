@@ -133,11 +133,13 @@ class HomeScreen(
         val memoryItem = createMenuItem("Memory")
         val aimItem = createMenuItem("Aim")
         val progressItem = createMenuItem("Progress")
+        val routineItem = createMenuItem("Routine")
 
         sidebar.addView(aiItem)
         sidebar.addView(memoryItem)
         sidebar.addView(aimItem)
         sidebar.addView(progressItem)
+        sidebar.addView(routineItem)
 
         root.addView(sidebar)
 
@@ -229,6 +231,22 @@ class HomeScreen(
             contentContainer.addView(progressScreen.createView())
 
             headerTitle.text = "Progress"
+            closeSidebar()
+        }
+
+        routineItem.setOnClickListener {
+
+            contentContainer.removeAllViews()
+
+            val routineScreen = RoutineScreen(context) {
+                contentContainer.removeAllViews()
+                contentContainer.addView(createAIContainer())
+                headerTitle.text = "AI OS"
+            }
+
+            contentContainer.addView(routineScreen.createView())
+
+            headerTitle.text = "Routine"
             closeSidebar()
         }
 

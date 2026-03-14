@@ -101,10 +101,13 @@ class AimResultScreen(
 
             val titleText = goal.lines().firstOrNull() ?: goal
 
+            val analysisResult = resultText.text.toString()
+
             val newAim = Aim(
                 title = titleText,
                 description = goal,
-                deadline = timeline
+                deadline = timeline,
+                analysis = analysisResult
             )
 
             val db = MemoryDatabase.getDatabase(context)
