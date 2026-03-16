@@ -51,10 +51,18 @@
             android:name=".MainActivity"
             android:exported="true"
             android:theme="@style/Theme.AIOS">
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
+
+                <!-- Normal app launcher -->
                 <category android:name="android.intent.category.LAUNCHER" />
+
+                <!-- Home launcher capability -->
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
+
         </activity>
 
     </application>
