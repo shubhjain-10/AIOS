@@ -10,7 +10,8 @@ import android.widget.*
 
 class RoutineScreen(
     private val context: Context,
-    private val onBack: () -> Unit
+    private val onBack: () -> Unit,
+    private val onViewHistory: () -> Unit
 ) {
 
     fun createView(): View {
@@ -40,6 +41,20 @@ class RoutineScreen(
 
         container.addView(title)
         container.addView(subtitle)
+
+        val historyBtn = Button(context).apply {
+            text = "View Past Saves"
+            setOnClickListener { onViewHistory() }
+        }
+
+        val historyParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        )
+
+        historyParams.setMargins(0,0,0,40)
+
+        container.addView(historyBtn, historyParams)
 
         val section = TextView(context).apply {
             text = "Daily Routine"

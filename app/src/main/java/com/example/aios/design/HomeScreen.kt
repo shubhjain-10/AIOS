@@ -238,11 +238,31 @@ class HomeScreen(
 
             contentContainer.removeAllViews()
 
-            val routineScreen = RoutineScreen(context) {
-                contentContainer.removeAllViews()
-                contentContainer.addView(createAIContainer())
-                headerTitle.text = "AI OS"
-            }
+            val routineScreen = RoutineScreen(
+                context,
+
+                // Back button
+                onBack = {
+                    contentContainer.removeAllViews()
+                    contentContainer.addView(createAIContainer())
+                    headerTitle.text = "AI OS"
+                },
+
+                // View Past Saves button
+                onViewHistory = {
+                    contentContainer.removeAllViews()
+
+                    val historyText = TextView(context).apply {
+                        text = "Past Routine Saves"
+                        textSize = 22f
+                        setTextColor(Color.WHITE)
+                        setPadding(40,40,40,40)
+                    }
+
+                    contentContainer.addView(historyText)
+                    headerTitle.text = "Routine History"
+                }
+            )
 
             contentContainer.addView(routineScreen.createView())
 
